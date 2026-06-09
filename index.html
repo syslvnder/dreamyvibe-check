@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IG Follower Check - Pastel Edition</title>
+    <style>
+        :root {
+            --bg-color: #fdfaf5; 
+            --container-bg: #ffffff; 
+            --primary-accent: #ffb3ba; 
+            --secondary-accent: #bae1ff; 
+            --text-color: #555555;
+            --header-color: #333333;
+            --input-border: #e6dfd1; 
+            --button-text: #ffffff;
+            --li-border: #f7f1e3;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 20px; 
+            background-color: var(--bg-color); 
+            color: var(--text-color); 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        
+        .container { 
+            max-width: 600px; 
+            width: 100%;
+            background: var(--container-bg); 
+            padding: 30px; 
+            border-radius: 20px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05); 
+            box-sizing: border-box;
+        }
+        
+        h3 { 
+            margin-top: 0; 
+            color: var(--header-color); 
+            text-align: center; 
+            font-size: 1.8em;
+            margin-bottom: 25px;
+        }
+        
+        label { 
+            font-size: 14px; 
+            font-weight: 600; 
+            display: block; 
+            margin-top: 20px; 
+            margin-bottom: 8px; 
+            color: #777;
+        }
+        
+        input[type="file"], textarea, button { 
+            width: 100%; 
+            margin-bottom: 12px; 
+            padding: 15px; 
+            box-sizing: border-box; 
+            border-radius: 10px; 
+            border: 1px solid var(--input-border); 
+            font-size: 15px; 
+            transition: border-color 0.3s;
+        }
+        
+        input[type="file"]:focus, textarea:focus {
+            outline: none;
+            border-color: var(--secondary-accent);
+        }
+        
+        textarea { 
+            height: 80px; 
+            resize: none; 
+            font-family: monospace; 
+        }
+        
+        button { 
+            background-color: var(--primary-accent); 
+            color: var(--button-text); 
+            border: none; 
+            font-weight: bold; 
+            cursor: pointer; 
+            margin-top: 15px; 
+            font-size: 1.1em;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        button:hover { 
+            opacity: 0.9;
+        }
+        
+        .counter { 
+            font-weight: bold; 
+            margin: 25px 0 10px 0; 
+            color: #cc99ff; 
+            font-size: 1.2em;
+        }
+        
+        ul { 
+            max-height: 300px; 
+            overflow-y: scroll; 
+            border: 1px solid var(--li-border); 
+            padding-left: 0; 
+            list-style: none; 
+            border-radius: 10px; 
+            background-color: #fafafa;
+            margin: 0;
+        }
+        
+        ul::-webkit-scrollbar {
+            width: 8px;
+        }
+        ul::-webkit-scrollbar-thumb {
+            background-color: #fce1e4; 
+            border-radius: 4px;
+        }
+        
+        li { 
+            padding: 12px 20px; 
+            border-bottom: 1px solid var(--li-border); 
+            font-size: 15px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+        }
+        
+        li:last-child { 
+            border-bottom: none; 
+        }
+        
+        .user-link { 
+            color: #88ccff; 
+            font-weight: 600; 
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        .user-link:hover {
+            text-decoration: underline;
+        }
+        
+        .right-side {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-tag { 
+            font-size: 13px; 
+            color: #777; 
+            background: #ffe6e6; 
+            padding: 4px 10px; 
+            border-radius: 6px; 
+        }
+
+        .copy-toast {
+            font-size: 11px;
+            color: #9cd9af;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h3>Instagram Unfollow Finder</h3>
+    
+    <label for="followersFile">Upload followers.html:</label>
+    <input type="file" id="followersFile" accept=".html">
+    
+    <label for="followingFile">Upload following.html:</label>
+    <input type="file" id="followingFile" accept=".html">
+    
+    <label for="vipList">Famous People / Editors to Ignore (Separated by commas):</label>
+    <textarea id="vipList" placeholder="zendaya, taylorswift, your_favorite_editor_1"></textarea>
+    
+    <button onclick="compareLists()">Find Non-Followers</button>
+    
+    <div class="counter" id="countDiv"></div>
+    <ul id="results"></ul>
+</div>
+<script>
+    function cleanUsername(rawText) {
+        let clean = rawText.trim().toLowerCase();
+        if (clean.includes('/')) {
+            const parts = clean.split('/').filter(p => p.length > 0);
+            clean = parts[parts.length - 1];
+        }
+        return clean;
+    }
+
+    function copyToClipboard(username, elementId, event) {
+        event.preventDefault(); 
+        
+        navigator.clipboard.writeText(username).then(() => {
+            const toast = document.getElementById('toast-' + elementId);
+            toast.style.opacity = '1';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+            }, 1500);
+            
+            window.open(`https://instagram.com/${username}`, '_blank');
+        });
+    }
+
+    async function parseHtml(file) {
+        return new Promise(res => {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const doc = new DOMParser().parseFromString(e.target.result, 'text/html');
+                const users = Array.from(doc.querySelectorAll('a')).map(a => cleanUsername(a.textContent));
+                res(new Set(users));
+            };
+            reader.readAsText(file);
+        });
+    }
+
+    async function compareLists() {
+        const followersInput = document.getElementById('followersFile').files[0];
+        const followingInput = document.getElementById('followingFile').files[0];
+        
+        if (!followersInput || !followingInput) {
+            alert('Please select both your followers and following files first.');
+            return;
+        }
+
+        const vipRaw = document.getElementById('vipList').value;
+        const vipSet = new Set(vipRaw.split(',').map(name => name.trim().toLowerCase()).filter(name => name.length > 0));
+
+        const f = await parseHtml(followersInput);
+        const g = await parseHtml(followingInput);
+        const results = document.getElementById('results');
+        const countDiv = document.getElementById('countDiv');
+        
+        results.innerHTML = '';
+        let count = 0;
+        
+        const sortedFollowing = Array.from(g).sort();
+
+        sortedFollowing.forEach((user, index) => {
+            if (user.length > 0 && !f.has(user)) {
+                if (vipSet.has(user)) {
+                    return; 
+                }
+                
+                results.innerHTML += `<li>
+                    <a class="user-link" href="https://instagram.com/${user}" target="_blank" onclick="copyToClipboard('${user}', '${index}', event)">@${user}</a> 
+                    <div class="right-side">
+                        <span class="copy-toast" id="toast-${index}">Copied! ✨</span>
+                        <span class="status-tag">Not Following</span>
+                    </div>
+                </li>`;
+                count++;
+            }
+        });
+
+        if (count === 0) {
+            countDiv.innerHTML = '';
+            results.innerHTML = '<li style="justify-content: center; color: #26af48; font-weight: bold; background-color: #bbf2f0; border-radius: 8px;">Everyone follows you back! 🎉</li>';
+        } else {
+            countDiv.innerHTML = `${count} regular accounts aren't following you back:`;
+        }
+    }
+</script>
+</body>
+</html>
