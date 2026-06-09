@@ -67,17 +67,6 @@
             transition: border-color 0.3s;
         }
         
-        input[type="file"]:focus, textarea:focus {
-            outline: none;
-            border-color: var(--secondary-accent);
-        }
-        
-        textarea { 
-            height: 80px; 
-            resize: none; 
-            font-family: monospace; 
-        }
-        
         button { 
             background-color: var(--primary-accent); 
             color: var(--button-text); 
@@ -112,14 +101,6 @@
             margin: 0;
         }
         
-        ul::-webkit-scrollbar {
-            width: 8px;
-        }
-        ul::-webkit-scrollbar-thumb {
-            background-color: #fce1e4; 
-            border-radius: 4px;
-        }
-        
         li { 
             padding: 12px 20px; 
             border-bottom: 1px solid var(--li-border); 
@@ -129,19 +110,11 @@
             align-items: center;
         }
         
-        li:last-child { 
-            border-bottom: none; 
-        }
-        
         .user-link { 
             color: #88ccff; 
             font-weight: 600; 
             text-decoration: none;
             cursor: pointer;
-        }
-        
-        .user-link:hover {
-            text-decoration: underline;
         }
         
         .right-side {
@@ -171,14 +144,14 @@
 <div class="container">
     <h3>Instagram Unfollow Finder</h3>
     
-    <label for="followersFile">Upload followers.html:</label>
-    <input type="file" id="followersFile" accept=".html">
+    <label for="followersFile">Upload Followers File:</label>
+    <input type="file" id="followersFile">
     
-    <label for="followingFile">Upload following.html:</label>
-    <input type="file" id="followingFile" accept=".html">
+    <label for="followingFile">Upload Following File:</label>
+    <input type="file" id="followingFile">
     
     <label for="vipList">Famous People / Editors to Ignore (Separated by commas):</label>
-    <textarea id="vipList" placeholder="zendaya, taylorswift, your_favorite_editor_1"></textarea>
+    <textarea id="vipList" placeholder="zendaya, taylorswift"></textarea>
     
     <button onclick="compareLists()">Find Non-Followers</button>
     
@@ -187,6 +160,7 @@
 </div>
 <script>
     function cleanUsername(rawText) {
+        if (!rawText) return '';
         let clean = rawText.trim().toLowerCase();
         if (clean.includes('/')) {
             const parts = clean.split('/').filter(p => p.length > 0);
@@ -197,74 +171,118 @@
 
     function copyToClipboard(username, elementId, event) {
         event.preventDefault(); 
-        
         navigator.clipboard.writeText(username).then(() => {
             const toast = document.getElementById('toast-' + elementId);
             toast.style.opacity = '1';
-            setTimeout(() => {
-                toast.style.opacity = '0';
-            }, 1500);
-            
+            setTimeout(() => { toast.style.opacity = '0'; }, 1500);
             window.open(`https://instagram.com/${username}`, '_blank');
         });
     }
 
-    async function parseHtml(file) {
-        return new Promise(res => {
+    function extractUsernamesFromJson(obj, set) {
+        if (typeof obj !== 'object' || obj === null) return;
+        
+        if (obj.value && typeof obj.value === 'string') {
+            let user = cleanUsername(obj.value);
+            if (user && !user.includes(' ') && !user.includes('instagram')) set.add(user);
+        }
+        if (obj.string_value && typeof obj.string_value === 'string') {
+            let user = cleanUsername(obj.string_value);
+            if (user && !user.includes(' ') && !user.includes('instagram')) set.add(user);
+        }
+        
+        for (let key in obj) {
+            extractUsernamesFromJson(obj[key], set);
+        }
+    }
+
+    async function parseFile(file) {
+        return new Promise((res, rej) => {
             const reader = new FileReader();
             reader.onload = e => {
-                const doc = new DOMParser().parseFromString(e.target.result, 'text/html');
-                const users = Array.from(doc.querySelectorAll('a')).map(a => cleanUsername(a.textContent));
-                res(new Set(users));
+                try {
+                    const content = e.target.result.trim();
+                    const users = new Set();
+
+                    if (content.startsWith('{') || content.startsWith('[')) {
+                        const jsonData = JSON.parse(content);
+                        extractUsernamesFromJson(jsonData, users);
+                    } else {
+                        const doc = new DOMParser().parseFromString(content, 'text/html');
+                        const elements = Array.from(doc.querySelectorAll('a, td, li, span, strong, div'));
+                        
+                        elements.forEach(el => {
+                            let text = el.textContent.trim();
+                            if (
+                                text.length > 0 && 
+                                text.length < 32 && 
+                                !text.includes(' ') && 
+                                !text.includes('instagram') &&
+                                !text.includes('utc') &&
+                                !text.includes('•') &&
+                                !/^\d/.test(text)
+                            ) {
+                                users.add(cleanUsername(text));
+                            }
+                        });
+                    }
+                    res(users);
+                } catch (err) {
+                    rej(err);
+                }
             };
+            reader.onerror = () => rej(new Error("File reading failed"));
             reader.readAsText(file);
         });
     }
 
     async function compareLists() {
-        const followersInput = document.getElementById('followersFile').files[0];
-        const followingInput = document.getElementById('followingFile').files[0];
-        
-        if (!followersInput || !followingInput) {
-            alert('Please select both your followers and following files first.');
-            return;
-        }
-
-        const vipRaw = document.getElementById('vipList').value;
-        const vipSet = new Set(vipRaw.split(',').map(name => name.trim().toLowerCase()).filter(name => name.length > 0));
-
-        const f = await parseHtml(followersInput);
-        const g = await parseHtml(followingInput);
-        const results = document.getElementById('results');
-        const countDiv = document.getElementById('countDiv');
-        
-        results.innerHTML = '';
-        let count = 0;
-        
-        const sortedFollowing = Array.from(g).sort();
-
-        sortedFollowing.forEach((user, index) => {
-            if (user.length > 0 && !f.has(user)) {
-                if (vipSet.has(user)) {
-                    return; 
-                }
-                
-                results.innerHTML += `<li>
-                    <a class="user-link" href="https://instagram.com/${user}" target="_blank" onclick="copyToClipboard('${user}', '${index}', event)">@${user}</a> 
-                    <div class="right-side">
-                        <span class="copy-toast" id="toast-${index}">Copied! ✨</span>
-                        <span class="status-tag">Not Following</span>
-                    </div>
-                </li>`;
-                count++;
+        try {
+            const followersInput = document.getElementById('followersFile').files[0];
+            const followingInput = document.getElementById('followingFile').files[0];
+            
+            if (!followersInput || !followingInput) {
+                alert('Please upload both files first!');
+                return;
             }
-        });
 
-        if (count === 0) {
-            countDiv.innerHTML = '';
-            results.innerHTML = '<li style="justify-content: center; color: #26af48; font-weight: bold; background-color: #bbf2f0; border-radius: 8px;">Everyone follows you back! 🎉</li>';
-        } else {
-            countDiv.innerHTML = `${count} regular accounts aren't following you back:`;
+            const vipRaw = document.getElementById('vipList').value;
+            const vipSet = new Set(vipRaw.split(',').map(name => name.trim().toLowerCase()).filter(name => name.length > 0));
+
+            const f = await parseFile(followersInput);
+            const g = await parseFile(followingInput);
+            
+            const results = document.getElementById('results');
+            const countDiv = document.getElementById('countDiv');
+            
+            results.innerHTML = '';
+            let count = 0;
+            
+            const sortedFollowing = Array.from(g).sort();
+
+            sortedFollowing.forEach((user, index) => {
+                if (user.length > 0 && !f.has(user)) {
+                    if (vipSet.has(user)) return; 
+                    
+                    results.innerHTML += `<li>
+                        <a class="user-link" href="https://instagram.com/${user}" target="_blank" onclick="copyToClipboard('${user}', '${index}', event)">@${user}</a> 
+                        <div class="right-side">
+                            <span class="copy-toast" id="toast-${index}">Copied! ✨</span>
+                            <span class="status-tag">Not Following</span>
+                        </div>
+                    </li>`;
+                    count++;
+                }
+            });
+
+            if (count === 0) {
+                countDiv.innerHTML = '';
+                results.innerHTML = '<li style="justify-content: center; color: #26af48; font-weight: bold; background-color: #bbf2f0; border-radius: 8px;">Everyone follows you back! 🎉</li>';
+            } else {
+                countDiv.innerHTML = `${count} accounts aren't following you back:`;
+            }
+        } catch (error) {
+            alert("App Error: " + error.message + "\nDrop this error message in our chat!");
         }
     }
 </script>
